@@ -38,17 +38,22 @@ def ambil_dari_playstore(jumlah=200):
 
 def ambil_dari_appstore(jumlah=200):
     hasil = []
-    halaman = 1
-    maks_halaman = (jumlah // 50) + 1
-    while halaman <= maks_halaman:
-        url = f"https://itunes.apple.com/{APPSTORE_NEGARA}/rss/customerreviews/page={halaman}/id={APPSTORE_APP_ID}/sortby=mostrecent/json"
-        try:
-            resp = requests.get(url, timeout=10)
-            data = resp.json()
-            entries = data.get("feed", {}).get("entry", [])
-            entries = [e for e in entries if "im:rating" in e]
-            if not entries: break
-            for e in entries:
+    # Apple RSS feed biasanya membatasi jumlah per halaman dan total halaman.
+    # Kita coba ambil dari page 1 saja, karena biasanya data terbaru ada di sana.
+    url = f"https://itunes.apple.com/{APPSTORE_NEGARA}/rss/customerreviews/id={APPSTORE_APP_ID}/sortBy=mostRecent/json"
+    
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0'} # Apple kadang memblokir request tanpa User-Agent
+        resp = requests.get(url, headers=headers, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+        
+        entries = data.get("feed", {}).get("entry", [])
+        
+        # Saring entri agar hanya mengambil ulasan (melewati entri info aplikasi)
+        for e in entries:
+            # RSS Apple punya entri 'author' yang tidak ada di objek aplikasi
+            if "author" in e:
                 hasil.append({
                     "teks_ulasan": e.get("content", {}).get("label", ""),
                     "rating": int(e.get("im:rating", {}).get("label", 0)),
@@ -56,9 +61,9 @@ def ambil_dari_appstore(jumlah=200):
                     "sumber": "App Store",
                     "nama_aplikasi": NAMA_APLIKASI,
                 })
-        except: break
-        halaman += 1
-        time.sleep(0.5)
+    except Exception as e:
+        print(f"Error App Store: {e}")
+        
     return hasil
 
 # --- UI STREAMLIT ---
