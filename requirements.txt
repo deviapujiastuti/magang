@@ -2,3 +2,5 @@ streamlit
 pandas
 plotly
 google-play-scraper
+app-store-scraper
+   requests>=2.31
