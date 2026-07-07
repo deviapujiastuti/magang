@@ -1,6 +1,6 @@
 
 from google_play_scraper import reviews as gplay_reviews, Sort as GPlaySort
-from app_store_scraper import AppStore
+import requests
 import pandas as pd
 import time
 
@@ -72,27 +72,51 @@ def ambil_dari_playstore(jumlah=200):
 # ==============================
 
 def ambil_dari_appstore(jumlah=200):
-    """Mengambil ulasan Erafone dari Apple App Store."""
+    """
+    Mengambil ulasan Erafone dari Apple App Store lewat RSS feed publik resmi Apple.
+    Endpoint ini tidak butuh API key, tapi punya beberapa batasan:
+      - Maksimal sekitar 10 halaman x 50 ulasan = 500 ulasan per negara
+      - Hanya menampilkan ulasan yang tersedia untuk negara (APPSTORE_NEGARA) tertentu
+    """
     hasil = []
+    halaman = 1
+    maks_halaman = (jumlah // 50) + 1
 
     print(f"Mengambil ulasan dari App Store ...")
 
-    try:
-        app = AppStore(country=APPSTORE_NEGARA, app_name=APPSTORE_APP_NAME, app_id=APPSTORE_APP_ID)
-        app.review(how_many=jumlah)
+    while halaman <= maks_halaman:
+        url = (
+            f"https://itunes.apple.com/{APPSTORE_NEGARA}/rss/customerreviews/"
+            f"page={halaman}/id={APPSTORE_APP_ID}/sortby=mostrecent/json"
+        )
 
-        for r in app.reviews:
+        try:
+            resp = requests.get(url, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as e:
+            print(f"  -> Gagal ambil halaman {halaman}: {e}")
+            break
+
+        entries = data.get("feed", {}).get("entry", [])
+
+        # Entry pertama di halaman 1 biasanya cuma info aplikasi (bukan ulasan), bukan selalu ada
+        entries = [e for e in entries if "im:rating" in e]
+
+        if not entries:
+            break  # sudah tidak ada ulasan lagi di halaman ini
+
+        for e in entries:
             hasil.append({
-                "teks_ulasan": r.get("review", ""),
-                "rating": r.get("rating"),
-                "tanggal": r.get("date").strftime("%Y-%m-%d") if r.get("date") else "",
+                "teks_ulasan": e.get("content", {}).get("label", ""),
+                "rating": int(e.get("im:rating", {}).get("label", 0)),
+                "tanggal": e.get("updated", {}).get("label", "")[:10],  # ambil YYYY-MM-DD saja
                 "sumber": "App Store",
                 "nama_aplikasi": NAMA_APLIKASI,
             })
-    except Exception as e:
-        print(f"  -> GAGAL mengambil dari App Store: {e}")
-        print(f"  -> Catatan: App Store TIDAK punya rating negara Indonesia untuk semua app.")
-        print(f"     Kalau APPSTORE_NEGARA='id' gagal, coba ganti ke negara lain (misal 'us').\n")
+
+        halaman += 1
+        time.sleep(1)
 
     print(f"  -> Berhasil mengambil {len(hasil)} ulasan dari App Store.\n")
     return hasil
