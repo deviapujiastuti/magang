@@ -1,0 +1,14 @@
+# Data hasil crawling (di-generate ulang tiap orang yang jalankan)
+   *.csv
+   sudah_diambil.json
+
+   # Virtual environment
+   venv/
+   .venv/
+
+   # Python cache
+   __pycache__/
+   *.pyc
+
+   # OS files
+   .DS_Store
